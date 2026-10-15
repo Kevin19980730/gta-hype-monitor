@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTA Hype Monitor</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.04);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --up: #006300; --down: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --up: #0ca30c; --down: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --up: #0ca30c; --down: #e66767;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 16px; margin: 0 0 2px; font-weight: 600; }
+.sub { color: var(--ink2); font-size: 13px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+button, a.btn { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 6px 10px; text-decoration: none; cursor: pointer; }
+button:hover, a.btn:hover { background: var(--wash); }
+button[disabled] { opacity: .5; cursor: progress; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile, .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+.tile .k { color: var(--ink2); font-size: 12px; }
+.tile .v { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tile .d { color: var(--ink2); font-size: 12px; margin-top: 2px; }
+.card { margin-bottom: 16px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0 6px; }
+.seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; border-radius: 0; padding: 5px 10px; color: var(--ink2); }
+.seg button.on { background: var(--ink); color: var(--surface); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--ring); background: var(--surface); font-size: 13px; cursor: pointer; color: var(--ink); }
+.chip .sw { width: 10px; height: 10px; border-radius: 50%; }
+.chip.off { color: var(--muted); }
+.chip.off .sw { opacity: .25; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; min-width: 170px; z-index: 2; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.tip .r span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--ink2); }
+.tip .sw { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink2); font-weight: 500; font-size: 12px; }
+.tw { overflow-x: auto; }
+.note { color: var(--ink2); font-size: 13px; }
+.note li { margin: 3px 0; }
+.err { color: var(--down); }
+th.sort { cursor: pointer; }
+th.sort:hover { color: var(--ink); }
+.ev-lbl { font-size: 10px; font-weight: 600; }
+.lane-name { font-size: 11px; font-weight: 600; }
+.evg { cursor: default; }
+.evg text.pill { font-size: 10px; font-weight: 650; }
+.evg .guide { visibility: hidden; }
+.evg:hover .guide { visibility: visible; }
+.evg:hover rect { filter: brightness(1.15); }
+#ev-list td, #ev-list th { font-size: 12px; }
+#ev-list .lift-up { color: var(--up); }
+.hosted .local-only { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>GTA Hype Monitor</h1>
+      <div class="sub">Weekly worldwide Google Trends since 2004, all five topics on one scale (100 = GTA V launch week, Sep 2013). <span id="upd"></span></div>
+    </div>
+    <div class="btns">
+      <button id="refresh" class="local-only">Refresh now</button>
+      <a class="btn" href="/download.csv">Download CSV</a>
+    </div>
+  </header>
+
+  <div class="ctl" style="margin:0 0 12px">
+    <span class="sub">Measure</span>
+    <div class="seg" id="measure"><button data-v="share" class="on">Share of Google searches</button><button data-v="abs">Est. absolute searches</button></div>
+    <span class="sub" id="measure-note"></span>
+  </div>
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <h2>Run-up to launch, aligned on release week</h2>
+    <div class="sub">x = weeks from each game's release week (0). GTA VI release date: 19 Nov 2026. Tags sit in one lane per game under the axis, so the lines stay clean: filled tags are trailers (T1, T2…; GP = gameplay, OT / LT = official / launch trailer, XL = Extended Look), outlined tags are other beats (PO = pre-orders open). Hover a tag to draw its week through the chart.</div>
+    <div class="ctl">
+      <div class="seg" id="ev-range"><button data-v="156">T−3y</button><button data-v="104" class="on">T−2y</button><button data-v="52">T−1y</button><button data-v="26">T−6m</button></div>
+      <div class="seg" id="ev-smooth"><button data-v="1" class="on">Weekly</button><button data-v="4">4-wk avg</button></div>
+      <div class="seg" id="ev-scale"><button data-v="lin" class="on">Linear</button><button data-v="log">Log</button></div>
+      <div class="chips" id="ev-chips"></div>
+    </div>
+    <div class="chart" id="ev"></div>
+    <details style="margin-top:10px" open><summary class="sub" style="cursor:pointer">Event list: interest in each tagged week, on the current measure</summary>
+      <div class="tw"><table id="ev-list"></table></div></details>
+  </section>
+
+  <section class="card">
+    <h2>Pre-launch interest by game</h2>
+    <div class="sub">Averages of the stitched weekly index, so games are comparable. <b>Same point</b> is each game's 4-week average ending at the same week-to-launch GTA VI is at now.</div>
+    <div class="tw"><table id="tbl"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Weekly interest, 2004 to today</h2>
+    <div class="ctl">
+      <div class="seg" id="cal-range"><button data-v="0" class="on">All</button><button data-v="10">10Y</button><button data-v="5">5Y</button><button data-v="2">2Y</button><button data-v="1">1Y</button></div>
+      <div class="seg" id="cal-scale"><button data-v="lin" class="on">Linear</button><button data-v="log">Log</button></div>
+      <div class="chips" id="cal-chips"></div>
+    </div>
+    <div class="chart" id="cal"></div>
+  </section>
+
+  <section class="card">
+    <h2>Interest by country, at the same point before launch</h2>
+    <div class="sub" id="geo-sub"></div>
+    <div class="ctl">
+      <div class="seg" id="geo-set"><button data-v="major" class="on">Major markets</button><button data-v="all">All countries with data</button></div>
+    </div>
+    <div class="tw"><table id="geo"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Google's total search volume, 2004 to today</h2>
+    <div class="sub">Estimated searches per year, in billions. Dots are disclosed figures (hover for source); the line between them is log-linear interpolation, extended past Mar 2025 at the 2016–2025 growth rate. This turns the share index into the "Est. absolute searches" measure.</div>
+    <div class="chart" id="vol"></div>
+    <div class="tw" style="margin-top:10px"><table id="vol-years"></table></div>
+    <div class="tw" style="margin-top:14px"><table id="vol-src"></table></div>
+  </section>
+
+  <section class="card note">
+    <h2>Method and caveats</h2>
+    <ul id="notes"></ul>
+  </section>
+</main>
+
+<script>
+const COLORS = ['--s1', '--s2', '--s3', '--s4', '--s5'];
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const DAY = 864e5;
+let D = null;
+const MAJOR = ['US','GB','DE','FR','IT','ES','NL','PL','SE','RU','UA','TR','BR','MX','AR','CL','CO','CA','AU','JP','KR','CN','TW','HK','IN','ID','PH','TH','VN','MY','SA','AE','EG','ZA','NG','PK'];
+const ABBR = {'Trailer 1': 'T1', 'Trailer 2': 'T2', 'Trailer 3': 'T3', 'Trailer 4': 'T4', 'Gameplay trailer': 'GP', 'Gameplay trailer 2': 'GP2',
+  'Official trailer': 'OT', 'Launch trailer': 'LT', 'Pre-orders open': 'PO', 'Pre-orders open (editions revealed)': 'PO',
+  'Pre-orders open (Special Edition)': 'PO', 'Announced; retail pre-orders open': 'PO','Extended Look (Netflix)': 'XL'};
+const st = {measure: 'share', geoSet: 'major', geoSort: 'ratio', geoDir: -1, evRange: 104, evSmooth: 1, evScale: 'lin', calRange: 0, calScale: 'lin', hidden: new Set()};
+const fmt = (v, d = 1) => v == null || isNaN(v) ? '–' : v.toFixed(d);
+const pd = s => new Date(s + 'T00:00:00Z');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+function sundayOf(iso) { const d = pd(iso); return new Date(d - d.getUTCDay() * DAY).toISOString().slice(0, 10); }
+function sundayOfTs(iso) { return pd(sundayOf(iso)).getTime(); }
+function offsetWeeks(week, rel) { return -Math.floor((pd(rel) - pd(week)) / DAY / 7); }
+function smooth(arr, n) {
+  if (n <= 1) return arr;
+  return arr.map((_, i) => { const w = arr.slice(Math.max(0, i - n + 1), i + 1).filter(x => x != null); return w.length === n ? w.reduce((a, b) => a + b, 0) / n : null; });
+}
+function avg(a) { a = a.filter(x => x != null); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+
+// --- per-game event-time arrays: map offset -> value (full weeks only, GTA VI current partial week excluded)
+// current measure: share index, or share x Google volume (rescaled so GTA V launch week = 100 again)
+function S(key) { return st.measure === 'abs' ? D.abs[key] : D.series[key]; }
+function buildAbs() {
+  const vol = D.volume.weekly_bn_per_year, g5 = D.series.gta5;
+  let ref = 0; g5.forEach((v, i) => { if (v > g5[ref]) ref = i; });
+  const k = 100 / (g5[ref] * vol[ref]);
+  D.abs = {}; for (const key in D.series) D.abs[key] = D.series[key].map((v, i) => v * vol[i] * k);
+  D.absRefWeek = D.weeks[ref];
+}
+function eventSeries(t) {
+  const v = S(t.key), m = new Map();
+  const partial = new Set(D.partial);
+  D.weeks.forEach((w, i) => { if (!partial.has(w)) m.set(offsetWeeks(w, t.release), v[i]); });
+  return m;
+}
+
+function niceTicks(lo, hi, n) {
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(x => x * mag).find(x => x >= step0);
+  const t = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) t.push(+v.toFixed(6)); return t;
+}
+
+// generic line chart: xs (numbers), series [{name,color,ys}], xFmt, xTicks
+function lineChart(el, {xs, series, xTicks, xFmt, tipTitle, log, markers = [], dots = [], lanes = [], H = 340, yFmt = v => v, logTicks = null}) {
+  const LANE = 22, laneTop = H + 6;
+  const W = Math.max(320, el.clientWidth || 900), m = {l: lanes.length ? 52 : 40, r: 14, t: 10, b: 26};
+  const iw = W - m.l - m.r, ih = H - m.t - m.b, HT = H + (lanes.length ? lanes.length * LANE + 10 : 0);
+  const vis = series.filter(s => !s.hidden);
+  let ymax = Math.max(1, ...vis.flatMap(s => s.ys.filter(v => v != null)));
+  const ymin = log ? (logTicks ? logTicks[0] : 0.25) : 0;
+  const yT = log ? (logTicks || [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200]).filter(v => v <= ymax * 1.5) : niceTicks(0, ymax, 5);
+  if (!log) ymax = Math.max(ymax, yT[yT.length - 1]);
+  const x0 = xs[0], x1 = xs[xs.length - 1];
+  const X = x => m.l + (x - x0) / (x1 - x0 || 1) * iw;
+  const Y = log ? v => m.t + ih - (Math.log(Math.max(v, ymin)) - Math.log(ymin)) / (Math.log(ymax * 1.1) - Math.log(ymin)) * ih
+                : v => m.t + ih - v / ymax * ih;
+  let s = `<svg viewBox="0 0 ${W} ${HT}" role="img">`;
+  yT.forEach(v => { s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css('--grid')}"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${yFmt(v)}</text>`; });
+  xTicks.forEach(x => { s += `<line x1="${X(x)}" x2="${X(x)}" y1="${m.t + ih}" y2="${m.t + ih + 4}" stroke="${css('--axis')}"/><text x="${X(x)}" y="${H - 6}" text-anchor="middle">${xFmt(x)}</text>`; });
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}" stroke="${css('--axis')}"/>`;
+  markers.forEach(mk => { if (mk.x >= x0 && mk.x <= x1) s += `<line x1="${X(mk.x)}" x2="${X(mk.x)}" y1="${m.t}" y2="${m.t + ih}" stroke="${mk.color}" stroke-dasharray="3 3" opacity=".7"/>`; });
+  vis.forEach(se => {
+    let d = '', pen = false;
+    se.ys.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(xs[i]).toFixed(1) + ',' + Y(v).toFixed(1); pen = true; });
+    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.bold ? 2.2 : 1.5}" stroke-linejoin="round"/>`;
+  });
+  dots.forEach(dt => {
+    if (dt.y == null || dt.x < x0 || dt.x > x1) return;
+    const cx = X(dt.x), cy = Y(dt.y);
+    s += `<circle cx="${cx}" cy="${cy}" r="4" fill="${dt.hollow ? css('--surface') : dt.color}" stroke="${dt.color}" stroke-width="1.6"/>`;
+    if (dt.label) s += `<text class="ev-lbl" x="${cx}" y="${cy - 8}" text-anchor="middle" style="fill:${dt.color}">${esc(dt.label)}</text>`;
+  });
+  lanes.forEach((ln, k) => {
+    const yc = laneTop + k * LANE + LANE / 2;
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${yc}" y2="${yc}" stroke="${css('--grid')}"/>`;
+    s += `<text class="lane-name" x="${m.l - 6}" y="${yc + 4}" text-anchor="end" style="fill:${ln.color}">${esc(ln.short)}</text>`;
+    let lastEnd = -Infinity;
+    ln.items.filter(it => it.x >= x0 && it.x <= x1).sort((a, b) => a.x - b.x).forEach(it => {
+      const tx = X(it.x), w = it.label.length * 6 + 10;
+      const cx = Math.min(Math.max(tx, lastEnd + 3 + w / 2), W - m.r - w / 2);   // nudge right if it would overlap
+      lastEnd = cx + w / 2;
+      const fill = it.hollow ? css('--surface') : ln.color, ink = it.hollow ? ln.color : '#fff';
+      s += `<g class="evg"><title>${esc(it.title)}</title>` +
+        `<line class="guide" x1="${tx}" x2="${tx}" y1="${m.t}" y2="${yc}" stroke="${ln.color}" stroke-dasharray="2 3"/>` +
+        (Math.abs(cx - tx) > 1 ? `<line x1="${tx}" x2="${cx}" y1="${yc}" y2="${yc}" stroke="${ln.color}"/>` : '') +
+        `<line x1="${tx}" x2="${tx}" y1="${yc - 9}" y2="${yc + 9}" stroke="${ln.color}" stroke-width="1.5"/>` +
+        `<rect x="${cx - w / 2}" y="${yc - 8}" width="${w}" height="16" rx="8" fill="${fill}" stroke="${ln.color}" stroke-width="1.2"/>` +
+        `<text class="pill" x="${cx}" y="${yc + 3.5}" text-anchor="middle" style="fill:${ink}">${esc(it.label)}</text></g>`;
+    });
+  });
+  s += `<line class="xh" y1="${m.t}" y2="${m.t + ih}" stroke="${css('--axis')}" visibility="hidden"/>`;
+  s += `<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip"></div>`;
+  el.innerHTML = s;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = el.querySelector('.xh');
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
+    const xv = x0 + (px - m.l) / iw * (x1 - x0);
+    let i = 0, best = Infinity; xs.forEach((x, j) => { const dd = Math.abs(x - xv); if (dd < best) { best = dd; i = j; } });
+    xh.setAttribute('x1', X(xs[i])); xh.setAttribute('x2', X(xs[i])); xh.setAttribute('visibility', 'visible');
+    const rows = vis.map(se => [se, se.ys[i]]).filter(r => r[1] != null).sort((a, b) => b[1] - a[1])
+      .map(([se, v]) => `<div class="r"><span><i class="sw" style="background:${se.color}"></i>${esc(se.name)}</span><b>${fmt(v)}</b></div>`).join('');
+    const evs = dots.concat(lanes.flatMap(ln => ln.items.map(it => ({...it, y: 0, color: ln.color}))))
+      .filter(dt => dt.y != null && dt.x === xs[i] && dt.title)
+      .map(dt => `<div class="r"><span><i class="sw" style="background:${dt.color}"></i>${esc(dt.title)}</span></div>`).join('');
+    tip.innerHTML = `<div style="margin-bottom:4px"><b>${tipTitle(xs[i])}</b></div>${rows || '<span class="sub">no data</span>'}` +
+      (evs ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--grid)">${evs}</div>` : '');
+    tip.style.display = 'block';
+    const tx = (X(xs[i]) * r.width / W), w = tip.offsetWidth;
+    tip.style.left = (tx + 14 + w > r.width ? tx - w - 14 : tx + 14) + 'px'; tip.style.top = '10px';
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; xh.setAttribute('visibility', 'hidden'); });
+}
+
+function chips(id) {
+  document.getElementById(id).innerHTML = D.topics.map((t, i) =>
+    `<span class="chip ${st.hidden.has(t.key) ? 'off' : ''}" data-k="${t.key}"><i class="sw" style="background:${css(COLORS[i])}"></i>${esc(t.name)}</span>`).join('');
+}
+
+function drawEvent() {
+  const lo = -st.evRange, hi = Math.min(52, Math.max(26, st.evRange / 2));
+  const xs = []; for (let x = lo; x <= hi; x++) xs.push(x);
+  const series = D.topics.map((t, i) => {
+    const m = eventSeries(t), full = []; for (let x = lo - 4; x <= hi; x++) full.push(m.has(x) ? m.get(x) : null);
+    const sm = smooth(full, st.evSmooth).slice(4);
+    return {name: t.name, color: css(COLORS[i]), ys: sm, hidden: st.hidden.has(t.key), bold: t.key === 'gta6'};
+  });
+  const SHORT = {gta6: 'VI', gta5: 'V', rdr2: 'RDR2', gta4: 'IV', gtasa: 'SA'};
+  const lanes = [], evRows = [];
+  D.topics.forEach((t, i) => {
+    const m = eventSeries(t);
+    const items = (D.events[t.key] || []).map(([date, name, kind]) => {
+      const x = offsetWeeks(sundayOf(date), t.release);
+      const prev = avg([1, 2, 3, 4].map(k => m.get(x - k)).filter(v => v != null));
+      evRows.push({t, i, date, name, kind, x, v: m.get(x), prev});
+      return {x, label: ABBR[name] || name, hollow: kind !== 'trailer', title: `${t.name}: ${name}, ${date} (${Math.abs(x)} wks ${x < 0 ? 'before' : 'after'} launch)`};
+    });
+    if (!st.hidden.has(t.key) && items.some(it => it.x >= lo && it.x <= hi)) lanes.push({short: SHORT[t.key] || t.name, color: css(COLORS[i]), items});
+  });
+  document.getElementById('ev-list').innerHTML = `<tr><th>Game</th><th>Tag</th><th style="text-align:left">Event</th><th>Date</th><th>Weeks to launch</th><th>Index that week</th><th>Prior 4-wk avg</th><th>Lift</th></tr>` +
+    evRows.map(r => `<tr><td><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${css(COLORS[r.i])}"></i>${esc(r.t.name)}</td>` +
+      `<td>${esc(ABBR[r.name] || '')}</td><td style="text-align:left">${esc(r.name)}${r.kind !== 'trailer' ? ' <span class="sub">(not a trailer)</span>' : ''}</td><td>${r.date}</td>` +
+      `<td>${r.x}</td><td>${fmt(r.v, 2)}</td><td>${fmt(r.prev, 2)}</td><td class="${r.v / r.prev >= 1.5 ? 'lift-up' : ''}">${r.v != null && r.prev ? fmt(r.v / r.prev, 1) + '×' : '–'}</td></tr>`).join('');
+  const step = st.evRange >= 104 ? 26 : st.evRange >= 52 ? 13 : 4;
+  const xTicks = xs.filter(x => x % step === 0);
+  lineChart(document.getElementById('ev'), {xs, series, xTicks, log: st.evScale === 'log',
+    xFmt: x => x === 0 ? 'launch' : (x > 0 ? '+' : '−') + Math.abs(x) + 'w',
+    tipTitle: x => x === 0 ? 'Release week' : `${Math.abs(x)} weeks ${x < 0 ? 'before' : 'after'} release`,
+    markers: [{x: 0, color: css('--ink2')}], lanes});
+  chips('ev-chips');
+}
+
+function drawCal() {
+  let idx = D.weeks.map((_, i) => i);
+  if (st.calRange) { const cut = new Date(Date.now() - st.calRange * 365.25 * DAY); idx = idx.filter(i => pd(D.weeks[i]) >= cut); }
+  const xs = idx.map(i => pd(D.weeks[i]).getTime());
+  const series = D.topics.map((t, i) => ({name: t.name, color: css(COLORS[i]), ys: idx.map(j => S(t.key)[j]), hidden: st.hidden.has(t.key), bold: t.key === 'gta6'}));
+  const y0 = new Date(xs[0]).getUTCFullYear(), y1 = new Date(xs[xs.length - 1]).getUTCFullYear(), span = y1 - y0;
+  const xTicks = [];
+  if (span >= 3) { const st2 = span > 12 ? 2 : 1; for (let y = y0 + 1; y <= y1; y += st2) xTicks.push(Date.UTC(y, 0, 1)); }
+  else { for (let y = y0; y <= y1; y++) for (let mo = 0; mo < 12; mo += 3) { const t = Date.UTC(y, mo, 1); if (t >= xs[0] && t <= xs[xs.length - 1]) xTicks.push(t); } }
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  lineChart(document.getElementById('cal'), {xs, series, xTicks, log: st.calScale === 'log',
+    xFmt: x => { const d = new Date(x); return span >= 3 ? d.getUTCFullYear() : mon[d.getUTCMonth()] + ' ' + String(d.getUTCFullYear()).slice(2); },
+    tipTitle: x => 'Week of ' + new Date(x).toISOString().slice(0, 10) + (D.partial.includes(new Date(x).toISOString().slice(0, 10)) ? ' (partial)' : ''),
+    markers: D.topics.map((t, i) => ({x: pd(t.release).getTime(), color: css(COLORS[i])}))});
+  chips('cal-chips');
+}
+
+function stats() {
+  const g6 = D.topics.find(t => t.key === 'gta6'), m6 = eventSeries(g6);
+  const now = Math.max(...m6.keys());                     // GTA VI's latest full week, as weeks-to-launch
+  const at = (m, a, b) => { const v = []; for (let x = a; x <= b; x++) if (m.has(x)) v.push(m.get(x)); return v; };
+  const rows = D.topics.map((t, i) => {
+    const m = eventSeries(t), hasLaunch = m.has(0) && t.key !== 'gta6';
+    const pre = at(m, -104, -1);
+    return {t, i, same: avg(at(m, now - 3, now)), y1: avg(at(m, -52, -5)), y2: avg(at(m, -104, -53)),
+            prePeak: pre.length ? Math.max(...pre) : null, launch: hasLaunch ? Math.max(...at(m, 0, 2)) : null,
+            post: hasLaunch ? avg(at(m, 0, 12)) : null};
+  });
+  return {now, rows};
+}
+
+function drawTiles() {
+  const {now, rows} = stats();
+  const r6 = rows.find(r => r.t.key === 'gta6'), r5 = rows.find(r => r.t.key === 'gta5');
+  const lastFull = D.weeks.filter(w => !D.partial.includes(w)).pop();
+  const v6 = S('gta6')[D.weeks.indexOf(lastFull)];
+  const days = Math.round((pd('2026-11-19') - Date.now()) / DAY);
+  const others = rows.filter(r => r.t.key !== 'gta6' && r.same != null);
+  const bestPrev = others.reduce((a, b) => b.same > a.same ? b : a);
+  document.getElementById('tiles').innerHTML = [
+    ['Days to GTA VI launch', days > 0 ? days : 'launched', `19 Nov 2026 · now at week ${now} vs launch`],
+    ['GTA VI, latest full week', fmt(v6), `week of ${lastFull} · 4-wk avg ${fmt(r6.same)}`],
+    ['GTA VI vs GTA V at same point', fmt(r6.same / r5.same, 2) + '×', `GTA V 4-wk avg at week ${now}: ${fmt(r5.same)}`],
+    ['GTA VI vs best prior game, same point', fmt(r6.same / bestPrev.same, 2) + '×', `${esc(bestPrev.t.name)}: ${fmt(bestPrev.same)}`],
+    ['GTA VI pre-launch peak week', fmt(r6.prePeak), `GTA V launch week = ${fmt(r5.launch)}`],
+  ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+
+  document.getElementById('tbl').innerHTML = `<tr><th>Game</th><th>Release</th><th>Same point (wk ${now - 3}…${now})</th><th>GTA VI ÷ this</th><th>Avg T−104…−53</th><th>Avg T−52…−5</th><th>Pre-launch peak week</th><th>Launch peak (wk 0–2)</th><th>Avg first 13 weeks</th></tr>` +
+    rows.map(r => `<tr><td><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${css(COLORS[r.i])}"></i>${esc(r.t.name)}</td><td>${r.t.release}</td><td>${fmt(r.same, 2)}</td><td>${r.t.key === 'gta6' ? '' : fmt(r6.same / r.same, 2) + '×'}</td><td>${fmt(r.y2, 2)}</td><td>${fmt(r.y1, 2)}</td><td>${fmt(r.prePeak)}</td><td>${fmt(r.launch)}</td><td>${fmt(r.post, 1)}</td></tr>`).join('');
+}
+
+function drawNotes() {
+  const links = D.links.map(l => `${l.from.slice(0, 7)}→${l.to.slice(0, 7)} ×${l.k} (${l.overlap_weeks} wks)`).join('; ');
+  document.getElementById('notes').innerHTML = [
+    'Google Trends only returns weekly points for ranges up to about 5 years. The history is pulled as overlapping ~4.9-year windows; each window holds all five topics on one 0–100 scale. Older windows are chained onto the newest one by the ratio of their overlap totals, and the whole series is then rescaled so the single highest week = 100.',
+    `Chain factors: ${esc(links)}.`,
+    `Cross-check: the stitched weekly series, averaged to months, correlates <b>${D.monthly_check_corr}</b> with Google's own monthly all-time series (summed over the five topics).`,
+    'These are Knowledge-Graph <b>topics</b> (all languages and spellings), worldwide, all categories, web search. Topic ids come from your explore URL.',
+    'The index is a <b>share of all Google searches</b>, not a count. Google search volume has grown many times since 2004, so in absolute searches GTA VI is larger relative to San Andreas and GTA IV than the index shows. Comparisons with GTA V (2013) and RDR2 (2018) suffer least from this.',
+    'Values below ~1 come from Google rounding small numbers to integers in each window, so they are coarse. Use the log scale to read them. The current week is partial and is left out of the stats and the launch-aligned chart.',
+    'A Windows task ("GTA Hype Trends Daily", 07:20) re-pulls everything every day. Google revises recent weeks slightly, so each pull rewrites the series; raw pulls are kept in data/pulls.csv.',
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
+function drawGeo() {
+  const G = D.geo, el = document.getElementById('geo');
+  if (!G) { el.innerHTML = '<tr><td class="sub">No country pull yet.</td></tr>'; return; }
+  const w = G.windows, ttl = D.topics.map((t, i) => `${t.name} ${w[i][0]} → ${w[i][1]}`).join(' · ');
+  document.getElementById('geo-sub').innerHTML = `Each game over the same 4 weeks relative to its release (${esc(ttl)}), all five in one Google request so they share one scale. ` +
+    `<b>Split</b> = how that country's searches for the five game-windows divide up (sums to ~100%). <b>GTA VI ÷ GTA V</b> above 1 means GTA VI now takes a larger share of local searches than GTA V did at the same point. ` +
+    `<b>GTA VI intensity</b> = GTA VI's share of local searches, 100 = top country. Share only: Google publishes no search volumes by country, so the absolute adjustment is not applied here.`;
+  let rows = G.countries.filter(c => c.has[0] && c.has[1]).map(c => ({...c, ratio: c.split[1] ? c.split[0] / c.split[1] : null}));
+  if (st.geoSet === 'major') rows = rows.filter(c => MAJOR.includes(c.code));
+  const key = st.geoSort, getv = c => key === 'name' ? c.name : key === 'ratio' ? c.ratio : key === 'int' ? c.intensity[0] : c.split[+key];
+  rows.sort((a, b) => { const x = getv(a), y = getv(b); if (x == null) return 1; if (y == null) return -1; return (x > y ? 1 : x < y ? -1 : 0) * st.geoDir; });
+  const th = (k, lbl) => `<th class="sort" data-k="${k}">${lbl}${st.geoSort === k ? (st.geoDir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
+  el.innerHTML = `<tr>${th('name', 'Country')}${th('ratio', 'GTA VI ÷ GTA V')}${th('int', 'GTA VI intensity')}${D.topics.map((t, i) => th(String(i), 'Split: ' + esc(t.name))).join('')}</tr>` +
+    rows.map(r => `<tr><td>${esc(r.name)}</td><td style="color:${r.ratio >= 1 ? 'var(--up)' : 'var(--down)'}"><b>${r.ratio == null ? '–' : fmt(r.ratio, 2) + '×'}</b></td><td>${r.intensity[0] ?? '–'}</td>` +
+      r.split.map((v, i) => `<td>${r.has[i] ? v + '%' : '–'}</td>`).join('') + '</tr>').join('');
+  el.querySelectorAll('th.sort').forEach(h => h.onclick = () => {
+    const k = h.dataset.k; st.geoDir = st.geoSort === k ? -st.geoDir : (k === 'name' ? 1 : -1); st.geoSort = k; drawGeo(); });
+}
+
+function drawVol() {
+  const V = D.volume, xs = D.weeks.map(w => pd(w).getTime());
+  const y0 = new Date(xs[0]).getUTCFullYear(), y1 = new Date(xs[xs.length - 1]).getUTCFullYear(), xTicks = [];
+  for (let y = y0 + 1; y <= y1; y += 2) xTicks.push(Date.UTC(y, 0, 1));
+  const series = [{name: 'Searches / year (bn)', color: css('--s1'), ys: V.weekly_bn_per_year}];
+  const dots = V.anchors.map(a => {
+    const x = sundayOfTs(a.date); let j = 0, b = Infinity;
+    xs.forEach((t, k) => { if (Math.abs(t - x) < b) { b = Math.abs(t - x); j = k; } });
+    return {x: xs[j], y: V.weekly_bn_per_year[j], color: css('--s2'), title: `${a.date}: ${a.bn_per_year.toLocaleString()} bn/yr. ${a.source}`};
+  });
+  lineChart(document.getElementById('vol'), {xs, series, xTicks, log: true, H: 260, dots, logTicks: [50, 100, 200, 500, 1000, 2000, 5000, 10000],
+    xFmt: x => new Date(x).getUTCFullYear(), yFmt: v => v >= 1000 ? (v / 1000) + 'T' : v + 'B',
+    tipTitle: x => 'Week of ' + new Date(x).toISOString().slice(0, 10)});
+  const by = {}; D.weeks.forEach((w, i) => { (by[w.slice(0, 4)] ||= []).push(V.weekly_bn_per_year[i]); });
+  const yrs = Object.keys(by).filter(y => y >= '2004'), v13 = avg(by['2013']);
+  document.getElementById('vol-years').innerHTML = `<tr><th>Year</th><th>Searches / yr (bn)</th><th>× 2013</th><th>× 2004</th></tr>` +
+    yrs.map(y => `<tr><td>${y}${y === yrs[yrs.length - 1] ? ' (YTD)' : ''}</td><td>${Math.round(avg(by[y])).toLocaleString()}</td><td>${fmt(avg(by[y]) / v13, 2)}</td><td>${fmt(avg(by[y]) / avg(by['2004']), 1)}</td></tr>`).join('');
+  document.getElementById('vol-src').innerHTML = `<tr><th>Disclosed point</th><th>Searches / yr (bn)</th><th style="text-align:left">Source</th></tr>` +
+    V.anchors.map(a => `<tr><td>${a.date}</td><td>${a.bn_per_year.toLocaleString()}</td><td style="text-align:left;white-space:normal">${esc(a.source)}</td></tr>`).join('');
+}
+
+function draw() {
+  document.getElementById('measure-note').textContent = st.measure === 'abs'
+    ? `Share × estimated Google search volume, rescaled so GTA V launch week (${D.absRefWeek}) = 100 on both measures.` : '';
+  drawTiles(); drawEvent(); drawCal(); drawGeo(); drawVol(); drawNotes();
+}
+
+function seg(id, key, num) {
+  document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+    st[key] = num ? +b.dataset.v : b.dataset.v; draw();
+  });
+}
+seg('ev-range', 'evRange', 1); seg('ev-smooth', 'evSmooth', 1); seg('ev-scale', 'evScale');
+seg('cal-range', 'calRange', 1); seg('measure', 'measure'); seg('geo-set', 'geoSet'); seg('cal-scale', 'calScale');
+['ev-chips', 'cal-chips'].forEach(id => document.getElementById(id).addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  st.hidden.has(c.dataset.k) ? st.hidden.delete(c.dataset.k) : st.hidden.add(c.dataset.k); draw();
+}));
+window.addEventListener('resize', () => { if (D) draw(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (D) draw(); });
+
+async function load() {
+  const r = await fetch('/api/data'); const j = await r.json();
+  if (j.error) { document.getElementById('upd').innerHTML = `<span class="err">${esc(j.error)}</span>`; return; }
+  D = j; buildAbs();
+  const s = j.status || {};
+  document.getElementById('upd').innerHTML = `Pulled ${esc(j.updated_utc.replace('T', ' ').slice(0, 16))} UTC.` +
+    (s.refreshing ? ' Refreshing in background…' : '') + (s.error ? ` <span class="err">Last refresh failed: ${esc(s.error)}</span>` : '');
+  draw();
+}
+document.getElementById('refresh').addEventListener('click', async e => {
+  e.target.disabled = true; e.target.textContent = 'Pulling (~45 s)…';
+  try { const r = await (await fetch('/api/refresh', {method: 'POST'})).json(); if (!r.ok) alert(r.error || 'refresh failed'); }
+  finally { e.target.disabled = false; e.target.textContent = 'Refresh now'; load(); }
+});
+load();
+</script>
+</body>
+</html>

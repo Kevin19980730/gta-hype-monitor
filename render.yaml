@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: gta-hype-monitor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 app:app
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: GTA_HOSTED
+        value: "1"
