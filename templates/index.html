@@ -93,6 +93,7 @@ th.sort:hover { color: var(--ink); }
     <div class="btns">
       <button id="refresh" class="local-only">Refresh now</button>
       <a class="btn" href="/download.csv">Download CSV</a>
+      <a class="btn" href="/preorders.csv">Pre-orders CSV</a>
     </div>
   </header>
 
@@ -115,6 +116,25 @@ th.sort:hover { color: var(--ink); }
     <div class="chart" id="ev"></div>
     <details style="margin-top:10px" open><summary class="sub" style="cursor:pointer">Event list: interest in each tagged week, on the current measure</summary>
       <div class="tw"><table id="ev-list"></table></div></details>
+  </section>
+
+  <section class="card" id="po-card">
+    <h2>GTA VI pre-orders: Sensor Tower tracker and projection</h2>
+    <div class="sub" id="po-sub"></div>
+    <div class="tiles" id="po-tiles" style="margin-top:12px"></div>
+    <h2 style="margin-top:6px">Digital pre-orders, actual and projected to launch</h2>
+    <div class="sub">Cumulative PS5 + Xbox Series store pre-orders, net of returns (Sensor Tower, M units). The dashed lines run from the latest point to launch day along GTA V's 2013 pre-order curve, scaled to each scenario's launch total. The dotted grey line just extends the last 10 days' pace.</div>
+    <div class="ctl"><div class="seg" id="po-split"><button data-v="total" class="on">Total</button><button data-v="platform">By platform</button></div></div>
+    <div class="chart" id="po-chart"></div>
+    <h2 style="margin-top:14px">How the projection has moved</h2>
+    <div class="sub">Projected digital pre-orders at launch, rerun on every Sensor Tower data point from 59 days out (where GTA V's pre-order curve starts). Base divides units to date by GTA V's share booked at the same days-to-launch; Low and High use fixed shares booked.</div>
+    <div class="chart" id="po-hist"></div>
+    <h2 style="margin-top:14px">Unit model, Low / Base / High</h2>
+    <div class="sub" id="po-model-sub"></div>
+    <div class="tw"><table id="po-model"></table></div>
+    <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">Sensor Tower data points</summary>
+      <div class="tw"><table id="po-rows"></table></div></details>
+    <ul class="note" id="po-notes" style="margin:10px 0 0"></ul>
   </section>
 
   <section class="card">
@@ -165,7 +185,7 @@ const MAJOR = ['US','GB','DE','FR','IT','ES','NL','PL','SE','RU','UA','TR','BR',
 const ABBR = {'Trailer 1': 'T1', 'Trailer 2': 'T2', 'Trailer 3': 'T3', 'Trailer 4': 'T4', 'Gameplay trailer': 'GP', 'Gameplay trailer 2': 'GP2',
   'Official trailer': 'OT', 'Launch trailer': 'LT', 'Pre-orders open': 'PO', 'Pre-orders open (editions revealed)': 'PO',
   'Pre-orders open (Special Edition)': 'PO', 'Announced; retail pre-orders open': 'PO','Extended Look (Netflix)': 'XL'};
-const st = {measure: 'share', geoSet: 'major', geoSort: 'ratio', geoDir: -1, evRange: 104, evSmooth: 1, evScale: 'lin', calRange: 0, calScale: 'lin', hidden: new Set()};
+const st = {poSplit: 'total', measure: 'share', geoSet: 'major', geoSort: 'ratio', geoDir: -1, evRange: 104, evSmooth: 1, evScale: 'lin', calRange: 0, calScale: 'lin', hidden: new Set()};
 const fmt = (v, d = 1) => v == null || isNaN(v) ? '–' : v.toFixed(d);
 const pd = s => new Date(s + 'T00:00:00Z');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
@@ -203,7 +223,7 @@ function niceTicks(lo, hi, n) {
 }
 
 // generic line chart: xs (numbers), series [{name,color,ys}], xFmt, xTicks
-function lineChart(el, {xs, series, xTicks, xFmt, tipTitle, log, markers = [], dots = [], lanes = [], H = 340, yFmt = v => v, logTicks = null}) {
+function lineChart(el, {xs, series, xTicks, xFmt, tipTitle, log, markers = [], dots = [], lanes = [], H = 340, yFmt = v => v, logTicks = null, vFmt = v => fmt(v)}) {
   const LANE = 22, laneTop = H + 6;
   const W = Math.max(320, el.clientWidth || 900), m = {l: lanes.length ? 52 : 40, r: 14, t: 10, b: 26};
   const iw = W - m.l - m.r, ih = H - m.t - m.b, HT = H + (lanes.length ? lanes.length * LANE + 10 : 0);
@@ -224,7 +244,7 @@ function lineChart(el, {xs, series, xTicks, xFmt, tipTitle, log, markers = [], d
   vis.forEach(se => {
     let d = '', pen = false;
     se.ys.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(xs[i]).toFixed(1) + ',' + Y(v).toFixed(1); pen = true; });
-    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.bold ? 2.2 : 1.5}" stroke-linejoin="round"/>`;
+    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.bold ? 2.2 : 1.5}" stroke-linejoin="round"${se.dash ? ` stroke-dasharray="${se.dash}"` : ''}/>`;
   });
   dots.forEach(dt => {
     if (dt.y == null || dt.x < x0 || dt.x > x1) return;
@@ -260,7 +280,7 @@ function lineChart(el, {xs, series, xTicks, xFmt, tipTitle, log, markers = [], d
     let i = 0, best = Infinity; xs.forEach((x, j) => { const dd = Math.abs(x - xv); if (dd < best) { best = dd; i = j; } });
     xh.setAttribute('x1', X(xs[i])); xh.setAttribute('x2', X(xs[i])); xh.setAttribute('visibility', 'visible');
     const rows = vis.map(se => [se, se.ys[i]]).filter(r => r[1] != null).sort((a, b) => b[1] - a[1])
-      .map(([se, v]) => `<div class="r"><span><i class="sw" style="background:${se.color}"></i>${esc(se.name)}</span><b>${fmt(v)}</b></div>`).join('');
+      .map(([se, v]) => `<div class="r"><span><i class="sw" style="background:${se.color}"></i>${esc(se.name)}</span><b>${vFmt(v)}</b></div>`).join('');
     const evs = dots.concat(lanes.flatMap(ln => ln.items.map(it => ({...it, y: 0, color: ln.color}))))
       .filter(dt => dt.y != null && dt.x === xs[i] && dt.title)
       .map(dt => `<div class="r"><span><i class="sw" style="background:${dt.color}"></i>${esc(dt.title)}</span></div>`).join('');
@@ -415,10 +435,124 @@ function drawVol() {
     V.anchors.map(a => `<tr><td>${a.date}</td><td>${a.bn_per_year.toLocaleString()}</td><td style="text-align:left;white-space:normal">${esc(a.source)}</td></tr>`).join('');
 }
 
+// --- Sensor Tower pre-orders + unit-model projection (data from preorders.py)
+const fM = (v, d = 2) => v == null || isNaN(v) ? '–' : v.toFixed(d) + 'M';
+const fPct = v => v == null ? '–' : Math.round(v * 100) + '%';
+const fUsd = v => v == null ? '–' : '$' + (v >= 1000 ? (v / 1000).toFixed(2) + 'B' : Math.round(v) + 'M');
+const SC_COL = ['--s4', '--s1', '--s3'];
+function fillGaps(ys) {   // 2-day data on a daily axis: interpolate between known points
+  return ys.map((v, i) => {
+    if (v != null) return v;
+    let a = i - 1; while (a >= 0 && ys[a] == null) a--;
+    let b = i + 1; while (b < ys.length && ys[b] == null) b++;
+    return a < 0 || b >= ys.length ? null : ys[a] + (ys[b] - ys[a]) * (i - a) / (b - a);
+  });
+}
+function drawPreorders() {
+  const P = D.preorders, card = document.getElementById('po-card');
+  if (!P) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const R = P.rows, last = R[R.length - 1], pr = P.projection, [lo, ba, hi] = pr.scenarios, I = P.inputs;
+  const prevWeek = R.filter(r => r.days_to_launch >= last.days_to_launch + 7).pop();
+  document.getElementById('po-sub').innerHTML = `Source: <a href="${esc(P.tracker_url)}" target="_blank" rel="noopener">Sensor Tower GTA VI sales tracker</a> (PS5 + Xbox Series digital stores, net of returns). ` +
+    `Sensor Tower last updated <b>${esc(P.st_last_updated || '?')}</b>; latest data point <b>${last.date}</b> (${last.days_to_launch} days to launch). Checked daily; last pull ${esc(P.updated_utc.replace('T', ' ').slice(0, 16))} UTC. ` +
+    `Projection = your unit model, inputs from <b>${esc(P.inputs_source)}</b>.`;
+  const wAdd = prevWeek ? last.units - prevWeek.units : null;
+  document.getElementById('po-tiles').innerHTML = [
+    ['Digital pre-orders to date', fM(last.units), `PS ${fPct(last.ps_share)} · revenue ${fUsd(last.revenue)}${wAdd != null ? ' · +' + fM(wAdd) + ' in 7 days' : ''}`],
+    ['Recent pace', pr.pace_k_per_day == null ? '–' : Math.round(pr.pace_k_per_day) + 'k/day', `last ~10 days · at this pace ${fM(pr.pace_at_launch)} by launch`],
+    ['Digital pre-orders at launch (Base)', fM(ba.digital_at_launch), `Low ${fM(lo.digital_at_launch)} · High ${fM(hi.digital_at_launch)} · GTA V had ${fPct(pr.gta5_share)} booked at this point`],
+    ['Total pre-orders incl. boxed (Base)', fM(ba.total_preorders, 1), `Low ${fM(lo.total_preorders, 1)} · High ${fM(hi.total_preorders, 1)}`],
+    ['Launch cohort, first 3 days (Base)', fM(ba.launch_cohort, 1), `Low ${fM(lo.launch_cohort, 1)} · High ${fM(hi.launch_cohort, 1)}`],
+    ['Year-1 units (Base)', fM(ba.year1_units, 1), `Low ${fM(lo.year1_units, 1)} · High ${fM(hi.year1_units, 1)} · ${fPct(ba.year1_attach)} of console base`],
+    ['GTA VI net to Take-Two, FY27 (Base)', fUsd(ba.net_fy27), `${fmt(ba.fy27_vs_guided, 2)}× the guided FY27 increase ($${Math.round(I.fy27_guide - I.fy26_nb).toLocaleString()}M)`],
+  ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+
+  // chart 1: x = -days to launch, pre-orders open -> launch day
+  const d0 = R[0].days_to_launch, xs = []; for (let x = -d0; x <= 0; x++) xs.push(x);
+  const byX = new Map(R.map(r => [-r.days_to_launch, r]));
+  const paths = [lo, ba, hi].map(s => new Map(s.path.map(([d, v]) => [-d, v])));
+  const ser = [];
+  if (st.poSplit === 'platform') {
+    ser.push({name: 'PlayStation', color: css('--s1'), bold: true, ys: fillGaps(xs.map(x => byX.get(x)?.ps_units ?? null))});
+    ser.push({name: 'Xbox', color: css('--s3'), bold: true, ys: fillGaps(xs.map(x => byX.get(x)?.xbox_units ?? null))});
+    ser.push({name: 'Base projection, PS', color: css('--s1'), dash: '6 4', ys: xs.map(x => paths[1].has(x) ? paths[1].get(x) * last.ps_share : null)});
+    ser.push({name: 'Base projection, Xbox', color: css('--s3'), dash: '6 4', ys: xs.map(x => paths[1].has(x) ? paths[1].get(x) * (1 - last.ps_share) : null)});
+  } else {
+    ser.push({name: 'Sensor Tower actual', color: css('--ink'), bold: true, ys: fillGaps(xs.map(x => byX.get(x)?.units ?? null))});
+    [lo, ba, hi].forEach((s, j) => ser.push({name: `${s.name} projection`, color: css(SC_COL[j]), dash: '6 4', bold: j === 1,
+      ys: xs.map(x => paths[j].has(x) ? paths[j].get(x) : null)}));
+    const k = (pr.pace_k_per_day || 0) / 1000;
+    ser.push({name: 'Recent pace continued', color: css('--muted'), dash: '2 3', ys: xs.map(x => x >= -last.days_to_launch ? last.units + k * (x + last.days_to_launch) : null)});
+  }
+  const dayLbl = x => new Date(pd(P.launch).getTime() + x * DAY).toISOString().slice(0, 10);
+  const xTicks = xs.filter(x => x % 21 === 0);
+  lineChart(document.getElementById('po-chart'), {xs, series: ser, xTicks, H: 320,
+    xFmt: x => x === 0 ? 'launch' : `T${x}d`, vFmt: v => fM(v),
+    tipTitle: x => `${x === 0 ? 'Launch day' : -x + ' days to launch'} · ${dayLbl(x)}${byX.has(x) ? '' : x > -last.days_to_launch ? ' (projected)' : ' (interpolated)'}`,
+    markers: [{x: -last.days_to_launch, color: css('--ink2')}],
+    dots: st.poSplit === 'total' ? [lo, ba, hi].map((s, j) => ({x: 0, y: s.digital_at_launch, color: css(SC_COL[j]), label: fM(s.digital_at_launch, 1),
+      title: `${s.name}: ${fM(s.digital_at_launch)} digital pre-orders at launch`})) : []});
+
+  // chart 2: projection history
+  const H2 = P.history, hEl = document.getElementById('po-hist');
+  if (H2.length > 1) {
+    const hx = H2.map(h => -h.days_to_launch);
+    const hs = [0, 1, 2].map(j => ({name: ['Low', 'Base', 'High'][j], color: css(SC_COL[j]), bold: j === 1, ys: H2.map(h => h.digital[j])}));
+    hs.push({name: 'Pace continued', color: css('--muted'), dash: '2 3', ys: H2.map(h => h.pace_at_launch)});
+    hs.push({name: 'Actual to date', color: css('--ink'), ys: H2.map(h => h.units)});
+    lineChart(hEl, {xs: hx, series: hs, H: 240, xTicks: hx.filter((_, i) => i % 2 === 0),
+      xFmt: x => `T${x}d`, vFmt: v => fM(v),
+      tipTitle: x => { const h = H2.find(q => -q.days_to_launch === x); return `${h.date} · ${-x} days out · GTA V had ${fPct(h.gta5_share)} booked`; }});
+  } else hEl.innerHTML = '<div class="sub">Starts once Sensor Tower has two points inside 59 days to launch.</div>';
+
+  // model table (blue = workbook input)
+  document.getElementById('po-model-sub').innerHTML = `Console base at launch ${fM(pr.console_base_launch, 0)} (PS5 ${fM(I.ps5_base + I.ps5_add, 1)}, Xbox Series ${fM(I.xbox_base + I.xbox_add, 1)}). ` +
+    `GTA V ratios: year-1 ÷ 3-day units ${fmt(P.gta5.year1_over_3day, 2)}×, later-buyer conversion ${fPct(P.gta5.later_conversion)}. Prices $${I.price_std} / $${I.price_ult}, Ultimate ${fPct(I.ult_share_pre)} of pre-orders. <span style="color:var(--s1)">Blue</span> = input from the workbook.`;
+  const T = [
+    ['Step 1: pre-orders at launch'],
+    ['Share of final pre-orders already booked', s => fPct(s.share_booked), 1],
+    ['Digital pre-orders at launch', s => fM(s.digital_at_launch)],
+    ['Digital share of pre-orders', s => fPct(s.digital_share), 1],
+    ['Total pre-orders at launch (incl. boxed codes)', s => fM(s.total_preorders)],
+    ['Walk-in buyers, first 3 days, % of pre-orders', s => fPct(s.walkin), 1],
+    ['Launch cohort (first 3 days)', s => fM(s.launch_cohort)],
+    ['Step 2: consoles'],
+    ['Consoles added in year 1', s => fM(s.consoles_added, 0), 1],
+    ['Console base at end of year 1', s => fM(s.console_base_end, 0)],
+    ['Step 3: year-1 units'],
+    ['Method A: cohort × GTA V year-1 multiple', s => fM(s.method_a, 1)],
+    ['Method B: cohort + later buyers + new-console buyers', s => fM(s.method_b, 1)],
+    ['Year-1 units (weighted A/B)', s => `<b>${fM(s.year1_units, 1)}</b>`],
+    ['Share of end-of-year console base', s => fPct(s.year1_attach)],
+    ['PlayStation / Xbox units', s => `${fM(s.ps_units, 1)} / ${fM(s.xbox_units, 1)}`],
+    ['Step 4: revenue'],
+    ['Revenue at list price', s => fUsd(s.revenue_list)],
+    ['Blended average price', s => '$' + fmt(s.blended_price, 2)],
+    ['Net to Take-Two, year 1', s => fUsd(s.net_t2)],
+    ['Net to Take-Two in FY27 (to 31 Mar 2027)', s => `<b>${fUsd(s.net_fy27)}</b>`],
+    ['FY27 net ÷ guided FY27 increase', s => fmt(s.fy27_vs_guided, 2) + '×'],
+  ];
+  document.getElementById('po-model').innerHTML = `<tr><th></th>${pr.scenarios.map((s, j) => `<th><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:${css(SC_COL[j])}"></i>${s.name}</th>`).join('')}</tr>` +
+    T.map(([lbl, f, inp]) => f ? `<tr><td>${lbl}</td>${pr.scenarios.map((s, j) => `<td${inp && !(j === 1 && lbl.startsWith('Share of final')) ? ' style="color:var(--s1)"' : ''}>${f(s)}</td>`).join('')}</tr>`
+      : `<tr><td colspan="4" style="padding-top:12px;font-weight:600">${lbl}</td></tr>`).join('');
+
+  document.getElementById('po-rows').innerHTML = `<tr><th>Date</th><th>Days to launch</th><th>PlayStation</th><th>Xbox</th><th>Total units</th><th>Added</th><th>k/day</th><th>Revenue</th><th>PS share</th><th>$/unit</th></tr>` +
+    R.slice().reverse().map(r => `<tr><td>${r.date}</td><td>${r.days_to_launch}</td><td>${fM(r.ps_units)}</td><td>${fM(r.xbox_units)}</td><td><b>${fM(r.units)}</b></td><td>${fM(r.added)}</td><td>${r.k_per_day == null ? '–' : Math.round(r.k_per_day)}</td><td>${fUsd(r.revenue)}</td><td>${fPct(r.ps_share)}</td><td>${r.rev_per_unit ? '$' + fmt(r.rev_per_unit, 2) : '–'}</td></tr>`).join('');
+
+  const ref = P.refs || {};
+  document.getElementById('po-notes').innerHTML = [
+    `<b>Base</b> = units to date ÷ GTA V's share of final US pre-orders at the same days-to-launch (VGChartz 2013: ${P.gta5_curve.map(([d, s]) => `${Math.round(s * 100)}% at T−${d}`).join(', ')}; linear in between). <b>Low</b> assumes ${fPct(I.share_booked[0])} is already booked (front-loaded; the recent pace just continues). <b>High</b> assumes ${fPct(I.share_booked[2])} (a strong final-weeks push).`,
+    `Sensor Tower counts digital store sales only; boxed copies come in through the digital-share row. Sensor Tower revises its history (the Oct 5 country-split change), so each pull overwrites the stored series. Raw pulls are kept in data/sensortower_pulls.csv.`,
+    `Third-party cross-checks (cached in the workbook): Newzoo midpoint, launch-week units ${fM(ref.newzoo_launch_week, 1)}; Piper Sandler, launch-day ${fM(ref.piper_launch_day, 0)}; Newzoo "proven sequel" through launch week incl. boxed ${fM(ref.newzoo_proven_sequel, 1)}. Compare these with the launch-cohort row.`,
+    `To change the analysis, edit the blue inputs in <b>20261013_GTA6 Unit Model.xlsx</b> (Model and Consoles sheets); the next daily run (07:20) picks them up. The tracker is checked every day, but Sensor Tower itself updates about weekly.`,
+  ].map(x => `<li>${x}</li>`).join('');
+}
+
 function draw() {
   document.getElementById('measure-note').textContent = st.measure === 'abs'
     ? `Share × estimated Google search volume, rescaled so GTA V launch week (${D.absRefWeek}) = 100 on both measures.` : '';
-  drawTiles(); drawEvent(); drawCal(); drawGeo(); drawVol(); drawNotes();
+  drawTiles(); drawPreorders(); drawEvent(); drawCal(); drawGeo(); drawVol(); drawNotes();
 }
 
 function seg(id, key, num) {
@@ -429,7 +563,7 @@ function seg(id, key, num) {
   });
 }
 seg('ev-range', 'evRange', 1); seg('ev-smooth', 'evSmooth', 1); seg('ev-scale', 'evScale');
-seg('cal-range', 'calRange', 1); seg('measure', 'measure'); seg('geo-set', 'geoSet'); seg('cal-scale', 'calScale');
+seg('cal-range', 'calRange', 1); seg('measure', 'measure'); seg('geo-set', 'geoSet'); seg('cal-scale', 'calScale'); seg('po-split', 'poSplit');
 ['ev-chips', 'cal-chips'].forEach(id => document.getElementById(id).addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;
   st.hidden.has(c.dataset.k) ? st.hidden.delete(c.dataset.k) : st.hidden.add(c.dataset.k); draw();
